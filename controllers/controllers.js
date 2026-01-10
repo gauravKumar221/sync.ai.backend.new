@@ -2,6 +2,7 @@ import db from "../config/db.js";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+import { saveBooking } from '../services/booking.service.js';
 
 dotenv.config();
 
@@ -72,4 +73,39 @@ export const login = async (req, res) => {
 };
 
 
+// whatsapp 
 
+
+// controllers.js
+
+
+export const createBooking = async (req, res) => {
+    try {
+        const bookingData = req.body; // Assuming data comes from WhatsApp webhook or a direct API call
+
+        // Save the booking using the service
+        const result = await saveBooking(bookingData);
+
+        if (result.success) {
+            res.status(201).json({ message: "Booking saved successfully" });
+        } else {
+            res.status(400).json({ message: result.message });
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+
+
+export const getAllBookings = async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            "SELECT * FROM bookings ORDER BY id DESC"
+        );
+        return res.status(200).json(rows);
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Failed to fetch bookings" });
+    }
+};

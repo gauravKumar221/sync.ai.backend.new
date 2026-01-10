@@ -1,9 +1,8 @@
 import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
-import { isBookingQuery, getBookingTemplate } from '../services/ai.service.js';
 
-// Ensure the path is correct
-import { processMessage } from "../services/ai.service.js";
+import { processMessage, getBookingTemplate } from "../services/ai.service.js";
+import { parseBookingMessage, saveBooking, findBookingByPhone } from "../services/booking.service.js";
 
 export async function startWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState("auth");
@@ -11,7 +10,6 @@ export async function startWhatsApp() {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        // Connection issues fix karne ke liye additions
         keepAliveIntervalMs: 30000,
         defaultQueryTimeoutMs: undefined
     });
@@ -25,15 +23,11 @@ export async function startWhatsApp() {
 
         if (connection === "close") {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            console.log("Connection closed, status:", statusCode);
-
-            // 401 matlab logout, uske alawa sab par reconnect
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log("Reconnecting in 5 seconds...");
                 setTimeout(() => startWhatsApp(), 5000);
             }
         } else if (connection === "open") {
-            console.log("WhatsApp connected successfully! ✅");
+            console.log("WhatsApp connected successfully");
         }
     });
 
@@ -45,23 +39,54 @@ export async function startWhatsApp() {
 
         const from = msg.key.remoteJid;
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-
         if (!text) return;
-        console.log(`Received: ${text}`);
 
+        console.log("Received:", text);
+
+        let aiReply;
         try {
-            // AI se reply generate karwayein
-            const aiReply = await processMessage(text, from);
-
-            // Logic check
-            if (aiReply.includes("TRIGGER_BOOKING") || text.toLowerCase().includes("book")) {
-                const bookingStatus = await createBooking(from);
-                await sock.sendMessage(from, { text: bookingStatus });
-            } else {
-                await sock.sendMessage(from, { text: aiReply });
-            }
-        } catch (err) {
-            console.error("Message handling error:", err);
+            aiReply = await processMessage(text);
+        } catch (e) {
+            console.error(e);
+            await sock.sendMessage(from, { text: "Sorry, I'm having trouble right now. Please try again in a moment." });
+            return;
         }
+
+        if (aiReply.includes("ACTION:SHOW_BOOKING_TEMPLATE")) {
+            await sock.sendMessage(from, { text: getBookingTemplate() });
+            return;
+        }
+
+        if (aiReply.includes("ACTION:CHECK_BOOKING_STATUS")) {
+            const phone = from.split("@")[0];
+            const booking = await findBookingByPhone(phone);
+
+            const bookingContext = booking
+                ? `Booking Found:\nDate: ${booking.date}\nTime: ${booking.time}\nStatus: ${booking.status}`
+                : `No booking found for this user.`;
+
+            const finalReply = await processMessage(
+                `User asked about booking status.\n${bookingContext}`
+            );
+
+            await sock.sendMessage(from, { text: finalReply });
+
+            return;
+        }
+
+        if (aiReply.includes("ACTION:SAVE_BOOKING")) {
+            const bookingData = parseBookingMessage(text);
+            const result = await saveBooking(bookingData);
+
+            if (result.success) {
+                await sock.sendMessage(from, { text: "Your booking has been saved successfully." });
+            } else {
+                await sock.sendMessage(from, { text: "Please send the details in the correct format." });
+            }
+            return;
+        }
+
+        // Normal AI reply
+        await sock.sendMessage(from, { text: aiReply });
     });
 }
