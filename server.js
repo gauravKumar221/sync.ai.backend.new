@@ -3,15 +3,17 @@ import dotenv from "dotenv";
 import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
-import router from "./routes/routes.js";
+
 import { startWhatsApp } from "./whatsapp/client.js";
+import router from "./routes/routes.js";
 
 dotenv.config();
 
 const app = express();
-// Middlewares
+
+// 🔥 CORS must be ENABLED
 app.use(cors({
-    origin: "",
+    origin: true,      // allow all localhost ports in dev
     credentials: true
 }));
 
@@ -19,13 +21,11 @@ app.use(morgan("dev"));
 app.use(helmet());
 app.use(express.json());
 
-// Test route
-
 startWhatsApp();
 
-app.use("/api", router)
+app.use("/api", router);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

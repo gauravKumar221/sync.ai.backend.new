@@ -18,7 +18,7 @@ export const register = async (req, res) => {
             .promise()
             .query("SELECT * FROM users WHERE email = ?", [email]);
         if (existingUser.length > 0) {
-            return res.status(400).json({ message: "User already exists" });
+            return res.status(409).json({ message: "User already exists" });
         }
         // hash the password
 
