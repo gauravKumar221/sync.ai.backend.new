@@ -5,6 +5,10 @@ const createUsersTable = `CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
+  location VARCHAR(100),
+  phone VARCHAR(20),
+  city VARCHAR(50),
+  address VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;
