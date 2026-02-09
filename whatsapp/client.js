@@ -2,7 +2,14 @@ import fs from "fs";
 import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 
-import { processMessage, getBookingTemplate } from "../services/ai.service.js";
+// ✅ IMPORT ALL THE NEW FUNCTIONS
+import {
+    processMessage,
+    getBookingTemplate,
+    formatBookingConfirmation,
+    askForMissingFields,
+    hasBookingKeywords
+} from "../services/ai.service.js";
 import { parseBookingMessage, saveBooking, findBookingByPhone } from "../services/booking.service.js";
 import path from "path";
 import { findProduct } from "../services/product.service.js";
@@ -34,149 +41,6 @@ export async function startWhatsApp() {
         }
     });
 
-    //     sock.ev.on("messages.upsert", async ({ messages, type }) => {
-
-    //         if (type !== "notify") return;
-
-    //         const msg = messages[0];
-    //         if (!msg.message || msg.key.fromMe) return;
-
-    //         const from = msg.key.remoteJid;
-    //         const phone = from.split("@")[0];
-    //         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-    //         if (!text) return;
-
-    //         // 🧾 Detect booking form
-    //         const isBookingForm =
-    //             /name:\s*.+\nmobile:\s*\d+.*\nproblem:\s*.+\npreferred date:\s*.+\npreferred time:\s*.+/i
-    //                 .test(text);
-
-    //         // 🧾 Detect booking status query
-    //         const isBookingStatusQuery =
-    //             /booking|status|confirm|confirmed|ho gaya|hua kya|application|mera booking|book hua/i
-    //                 .test(text);
-
-    //         // 🟢 Handle booking status
-    //         if (isBookingStatusQuery) {
-    //             const booking = await findBookingByPhone(phone);
-
-    //             if (booking) {
-    //                 await sock.sendMessage(from, {
-    //                     text:
-    //                         `Yes ${booking.name}, your booking is confirmed ✅
-
-    // 📝 Problem: ${booking.problem}
-    // 🗓 Date: ${booking.date}
-    // ⏰ Time: ${booking.time}
-    // Status: ${booking.status}
-
-    // Our team will contact you shortly.`
-    //                 });
-    //             } else {
-    //                 await sock.sendMessage(from, { text: "I couldn't find any booking. Would you like to book now?" });
-    //             }
-    //             return;
-    //         }
-
-    //         // 🟢 Handle booking form submission
-    //         if (isBookingForm) {
-    //             const bookingData = parseBookingMessage(text);
-    //             const result = await saveBooking(bookingData);
-
-    //             if (result.success) {
-    //                 await sock.sendMessage(from, {
-    //                     text:
-    //                         `Thank you ${bookingData.name}! 🙏
-    // Your consultation has been successfully booked.
-
-    // 🗓 ${bookingData.date}
-    // ⏰ ${bookingData.time}
-
-    // Our team will contact you shortly.`
-    //                 });
-    //             } else {
-    //                 await sock.sendMessage(from, { text: "Please send details again in correct format." });
-    //             }
-    //             return;
-    //         }
-
-    //         // 🧠 AI processing
-    //         let aiReply;
-    //         try {
-    //             aiReply = await processMessage(text);
-    //         } catch (e) {
-    //             console.error(e);
-    //             await sock.sendMessage(from, { text: "Sorry, I'm having trouble right now." });
-    //             return;
-    //         }
-    //         // 🧾 Booking intent handling
-    //         if (aiReply === "INTENT:BOOKING") {
-    //             await sock.sendMessage(from, { text: getBookingTemplate() });
-    //             return;
-    //         }
-
-    //         // 🧾 Show booking template if needed
-    //         if (aiReply.includes("ACTION:SAVE_BOOKING")) {
-    //             const bookingData = parseBookingMessage(text);
-    //             const result = await saveBooking(bookingData);
-
-    //             if (result.success) {
-    //                 const thanksMessage =
-    //                     `Thank you ${bookingData.name}! 🙏
-
-    // Your consultation request has been received successfully.
-
-    // 📝 Details:
-    // Name: ${bookingData.name}
-    // Mobile: ${bookingData.phone}
-    // Problem: ${bookingData.problem}
-    // Date: ${bookingData.date}
-    // Time: ${bookingData.time}
-
-    // Our medical team will contact you shortly to confirm your appointment.
-
-    // If you need any help meanwhile, just message me.`;
-
-    //                 await sock.sendMessage(from, { text: thanksMessage });
-    //             } else {
-    //                 await sock.sendMessage(from, {
-    //                     text: "Please send the details again in the correct format so I can save your booking."
-    //                 });
-    //             }
-    //             return;
-    //         }
-
-
-    //         // 🧴 Product handling (only if not booking flow)
-    //         const matchedProducts = findProduct(text);
-
-    //         if (matchedProducts.length) {
-    //             let responseText = "Based on your problem, these medicines can help you:\n\n";
-
-    //             for (const product of matchedProducts.slice(0, 2)) {
-    //                 responseText += `${product.brand_name} (${product.composition}) - ₹${product.price}\n`;
-    //             }
-
-    //             responseText += "\nIf you'd like to place an order, just tell me.";
-
-    //             for (const product of matchedProducts.slice(0, 2)) {
-    //                 const imagePath = path.resolve(`products/images/${product.id}.jpg`);
-    //                 if (fs.existsSync(imagePath)) {
-    //                     await sock.sendMessage(from, {
-    //                         image: { url: imagePath },
-    //                         caption: `${product.brand_name}\n₹${product.price}`
-    //                     });
-    //                 }
-    //             }
-
-    //             await sock.sendMessage(from, { text: responseText });
-    //             return;
-    //         }
-
-    //         // 🗨 Normal AI reply
-    //         await sock.sendMessage(from, { text: aiReply });
-    //     });
-
     sock.ev.on("messages.upsert", async ({ messages, type }) => {
         if (type !== "notify") return;
 
@@ -186,97 +50,82 @@ export async function startWhatsApp() {
         const from = msg.key.remoteJid;
         const phone = from.split("@")[0];
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-        if (!text) return;
+        if (!text.trim()) return;
 
-        console.log("Received:", text);
+        console.log("📱 Received from", phone, ":", text);
 
-        // 🧾 1️⃣ Booking form detection FIRST
-        const isBookingForm =
-            /name:\s*.+\nmobile:\s*\d+.*\nproblem:\s*.+\npreferred date:\s*.+\npreferred time:\s*.+/i
-                .test(text);
-
-        if (isBookingForm) {
-            const bookingData = parseBookingMessage(text);
-            const result = await saveBooking(bookingData);
-
-            if (result.success) {
-                await sock.sendMessage(from, {
-                    text:
-                        `Thank you ${bookingData.name}! 🙏
-Your consultation has been successfully booked.
-
-📝 Problem: ${bookingData.problem}
-🗓 Date: ${bookingData.date}
-⏰ Time: ${bookingData.time}
-
-Our medical team will contact you shortly.`
-                });
-            } else {
-                await sock.sendMessage(from, {
-                    text: "Please send the booking details again in the correct format."
-                });
-            }
-            return;
-        }
-
-        // 🧾 2️⃣ Booking status check
-        const isBookingStatusQuery =
-            /booking|status|confirm|confirmed|ho gaya|hua kya|application|mera booking|book hua/i.test(text);
-
-        if (isBookingStatusQuery) {
-            const booking = await findBookingByPhone(phone);
-
-            if (booking) {
-                await sock.sendMessage(from, {
-                    text:
-                        `Yes ${booking.name}, your booking is confirmed ✅
-
-📝 Problem: ${booking.problem}
-🗓 Date: ${booking.date}
-⏰ Time: ${booking.time}
-Status: ${booking.status}`
-                });
-            } else {
-                await sock.sendMessage(from, {
-                    text: "No booking found for this number. Would you like to book a consultation?"
-                });
-            }
-            return;
-        }
-
-        // 🧠 3️⃣ AI processing (ONLY if not booking)
-        let aiReply;
         try {
-            aiReply = await processMessage(text);
-        } catch (e) {
-            console.error(e);
-            await sock.sendMessage(from, { text: "Sorry, system busy hai. Thodi der baad try karein." });
-            return;
-        }
+            // 🧠 1️⃣ FIRST: Process message through AI service (which checks for booking data)
+            const aiResponse = await processMessage(text);
 
-        if (aiReply === "INTENT:BOOKING") {
-            await sock.sendMessage(from, { text: getBookingTemplate() });
-            return;
-        }
+            console.log("🤖 AI Response:", aiResponse); // Debug log
 
-        // 🧴 4️⃣ Product handling
-        const matchedProducts = findProduct(text);
-        if (matchedProducts.length) {
-            let responseText = "Based on your problem, these medicines can help you:\n\n";
+            // Handle different AI response types
+            if (aiResponse.startsWith("BOOKING_DATA:")) {
+                // ✅ Complete booking data detected by AI
+                const bookingData = JSON.parse(aiResponse.replace("BOOKING_DATA:", ""));
 
-            for (const product of matchedProducts.slice(0, 2)) {
-                responseText += `${product.brand_name} (${product.composition}) - ₹${product.price}\n`;
+                // Send confirmation
+                await sock.sendMessage(from, {
+                    text: formatBookingConfirmation(bookingData)
+                });
+
+                // Save to database
+                try {
+                    const result = await saveBooking(bookingData);
+                    await sock.sendMessage(from, {
+                        text: `🎉 Appointment booked successfully!\n\nBooking ID: ${result.bookingId}\n\nOur team will contact you shortly.`
+                    });
+                } catch (error) {
+                    console.error("❌ Booking save error:", error);
+                    await sock.sendMessage(from, {
+                        text: "❌ Sorry, there was an error saving your booking. Please try again."
+                    });
+                }
+                return;
+
+            } else if (aiResponse.startsWith("PARTIAL_BOOKING:")) {
+                // ⚠️ Partial booking data detected
+                const data = JSON.parse(aiResponse.replace("PARTIAL_BOOKING:", ""));
+
+                await sock.sendMessage(from, {
+                    text: askForMissingFields(data.missing)
+                });
+                return;
+
+            } else if (aiResponse === "INTENT:BOOKING") {
+                // 📋 User wants to book but no details provided yet
+                await sock.sendMessage(from, { text: getBookingTemplate() });
+                return;
+
+            } else if (aiResponse === "INTENT:BOOKING" || hasBookingKeywords(text)) {
+                // Fallback: If AI says booking intent OR text has booking keywords
+                await sock.sendMessage(from, { text: getBookingTemplate() });
+                return;
             }
 
-            await sock.sendMessage(from, { text: responseText });
-            return;
+            // 🧴 2️⃣ Product handling (if AI didn't return booking-related response)
+            const matchedProducts = findProduct(text);
+            if (matchedProducts.length) {
+                let responseText = "Based on your query, these products may help:\n\n";
+
+                for (const product of matchedProducts.slice(0, 2)) {
+                    responseText += `💊 ${product.brand_name} (${product.composition}) - ₹${product.price}\n`;
+                }
+
+                responseText += "\nFor personalized advice, please describe your symptoms.";
+                await sock.sendMessage(from, { text: responseText });
+                return;
+            }
+
+            // 🗨 3️⃣ Normal AI reply (if not booking or products)
+            await sock.sendMessage(from, { text: aiResponse });
+
+        } catch (error) {
+            console.error("❌ Error processing message:", error);
+            await sock.sendMessage(from, {
+                text: "Sorry, system thoda busy hai. Thodi der baad try karein."
+            });
         }
-
-        // 🗨 5️⃣ Normal AI reply
-        await sock.sendMessage(from, { text: aiReply });
     });
-
-
-
-
 }

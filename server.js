@@ -21,7 +21,7 @@ app.use(morgan("dev"));
 app.use(helmet());
 app.use(express.json());
 
-startWhatsApp();
+// startWhatsApp();
 
 app.use("/api", router);
 

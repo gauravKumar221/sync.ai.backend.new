@@ -8,16 +8,15 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
+    port: 3306,
 });
 
 db.connect((error) => {
     if (error) {
-        console.log("Database connection error", error);
+        console.log("❌ Database connection error", error);
     } else {
-        console.log("Database connected");
+        console.log("✅ Database connected");
     }
 });
 
-
 export default db;
-

@@ -20,17 +20,18 @@ db.query(createUsersTable, (error) => {
     }
 });
 
-// Bookings table
 const createBookingsTable = `
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100),
-  phone VARCHAR(20),
-  problem TEXT,
-  date VARCHAR(50),
-  time VARCHAR(50),
-  status VARCHAR(20) DEFAULT 'Pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  name VARCHAR(100) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  problem TEXT NOT NULL,
+  date DATE NOT NULL,  
+  time TIME NOT NULL,  
+  status ENUM('Pending', 'Scheduled', 'Completed', 'Cancelled', 'Rescheduled') DEFAULT 'Pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_date (date),
+  INDEX idx_status (status)
 );
 `;
 
